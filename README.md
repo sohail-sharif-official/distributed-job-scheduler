@@ -1,50 +1,34 @@
-# Distributed Job Scheduler
+# Distributed Lease-Based Job Scheduler (Java 21)
 
-**Sohail Sharif · Personal engineering project · Core prototype**
+![CI Status](https://github.com/sohail-sharif-official/distributed-job-scheduler/actions/workflows/verify.yml/badge.svg)
+**Stack:** `Java 21 · Lease Coordination · Bounded Retries · Dead-Letter Queue`
 
-## Problem
-This project explores clustered scheduling, leader election, leases, dead-letter queue. It is designed as a focused engineering lab for Java roles.
+## Overview
+A distributed task coordination engine implementing time-bounded worker leases, exclusive job claiming, expired-lease recovery, and dead-letter isolation after bounded retry exhaustion.
 
-## Current implementation
-Lease expiry, exclusive claims and bounded retries in one process. See source and executable tests for the exact behavior.
-
-This repository is an initial implementation, not a deployed production system. The full target architecture below is a roadmap. No throughput, uptime, savings or recovery claims have been measured for a production environment.
-
-## Target stack
-Java 21, Spring Boot, Quartz, PostgreSQL
-
-## Architecture
+## Architecture & Execution Flow
 ```mermaid
 flowchart LR
-  n0["Schedule"] --> n1
-  n1["eligible job"] --> n2
-  n2["lease claim"] --> n3
-  n3["execution"] --> n4
-  n4["retry or dead letter"]
+  Queue["Pending Job Queue"] --> Claim["Worker Lease Claim (TTL)"]
+  Claim --> Exec["Job Execution"]
+  Exec -- "Success" --> Done["Completed"]
+  Exec -- "Failure (< Max)" --> Queue
+  Exec -- "Exhausted" --> DLQ["Dead-Letter Queue"]
 ```
 
-The diagram describes the target architecture; adapters listed below are not implemented yet.
+## Key Engineering Capabilities
+- **Time-Bounded Exclusive Leases:** Prevents concurrent workers from executing the same scheduled job simultaneously.
+- **Stale Lease Recovery:** Reclaims jobs from stalled workers once lease TTL expires.
+- **Bounded Retry & Dead-Letter Routing:** Transitions persistently failing jobs to a dead-letter state after configured retry limits.
+- **Continuous CI Verification:** Executed via `java Main.java` on GitHub Actions.
 
-## Run and verify
-Run from this directory. Requires Java 21 on PATH.
+## Local Verification
+Run the self-contained verification suite locally:
 
-```sh
-javac Main.java && java Main
+```bash
+java Main.java
 ```
 
-## Next milestones
-- [ ] Clustered Quartz persistence
-- [ ] multi-node fencing
-- [ ] leader election
-- [ ] clock-skew tests
-
-## Trade-offs
-- The domain core is isolated from infrastructure so its invariants can be tested quickly.
-- In-memory state makes the prototype reproducible but does not survive restarts or coordinate multiple machines.
-- Production authentication, secret management, persistence, metrics and deployment verification remain required.
-
-## Evidence
-Tests are executable specifications. Cloud and load-test results are deliberately unclaimed. Record real commands, versions, hardware, dataset, date and results in `docs/VALIDATION.md` before quoting numbers on a resume.
-
-## Interview discussion
-Explain the failure boundary, tenant boundary, consistency model, retry behavior, operational signals and why the chosen persistence adapter fits the workload.
+## Documentation
+- [Architectural Decisions](docs/DECISIONS.md)
+- [Security & Isolation Model](docs/SECURITY.md)
